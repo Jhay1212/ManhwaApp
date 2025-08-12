@@ -1,39 +1,78 @@
+
 import { User } from "../models/users";
 import AsyncHandler from "express-async-handler";
 
-
-const users = AsyncHandler(async(req, res) => {
+export const Register = AsyncHandler(async (req, res) => {
+    const { username, email, password, profile } = req.body;
     try {
-        const users = await User.find();
-    } catch(err) {
-        console.log("Error on fetching users" + err);
-        res.send(500).json({message: err.message});
+        const newUser = new User({
+            username,
+            profile,
+            email,
+            password,
+        });
+        const existingUser = await User.findOne({ email });
+        if (existingUser)
+            return res.status(400).json({
+                status: "failed",
+                data: [],
+                message: "It seems you already have an account, please log in instead.",
+            });
+        const savedUser = await newUser.save(); // save new user into the database
+        const {password:_, ...user_data} = savedUser._doc;
+        res.status(200).json({
+            status: "success",
+            data: [user_data],
+            message:
+                "Thank you for registering with us. Your account has been successfully created.",
+        });
+        console.log("User created successfully". newUser);
+    } catch (err) {
+        console.log("did not create")
+        res.status(500).json({
+            status: "error",
+            code: 500,
+            data: [],
+            message: "Internal Server Error",
+        });
     }
-})
+});
 
-const userId = AsyncHandler(async(req, res) => {
+export const Login = AsyncHandler(async(req, res) => {
+    const { email, password } = req.body;
     try {
-        const user = await User.findById(req.params.id);
-        if(!user) res.status(400).json({message: "User ID not found"})
-    } catch(err) {
-        console.log("Error on fetching user by id ");
-        res.send(500).json({message: err.message});
-
+        const user = await User.findOne({email}).select("+password");
+        if(!user) {
+            return res.status(401).json({
+                status: 'failed',
+                message: "User with that email doesn\'t exist.",
+                data: [email]
+            });
+        };
+        const isPasswordValid = await user.comparePassword(password);
+        if(!isPasswordValid) {
+            return res.status(401).json({
+                status: "failed",
+                message: "Password is incorrect.",
+                data: []
+            });
+        }
+     const options = {
+        maxAge: 20 * 60 *1000,
+        httpOnly: true,
+        secure: true
+     }
+    const token = user.generateJWTToken(); // generate session token for user
+    res.cookie("token", token, options)   
+     res.status(200).json({
+        status: "Success", 
+        message:"Logged in Successfully"    })
+            }catch(err) {
+        res.status(500).json({
+            status: "Failed",
+            code: 500,
+            message: "Server Error" + err.message
+        })
     }
-})
-
-const updateUser = AsyncHandler(async(req, res) => {
-    try {
-        const {username, email } = req.body;
-        const user = await User.findById(req.params.id,
-            {username, email},
-            {new: true, runValidators: true}
-        );
-        if(!user) res.status(400).json({message: "User not found"});
-        res.status(200).json({message: "User updated succesfully"})
-            
-    } catch(err) {
-        console.log("Error on updating users" );
-        res.send(500).json({message: err.message});
-    }
-})
+}
+);

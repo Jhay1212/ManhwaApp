@@ -13,5 +13,5 @@ const PORT = process.env.PORT;
 app.use("/api/", authRouter);
 app.listen(PORT, () => {
     connectDb();
-    console.log("Server runnint at port: 3000");
+    console.log("Server runnint at port: " + process.env.PORT);
 })
